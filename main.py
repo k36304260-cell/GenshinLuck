@@ -4,30 +4,26 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 import pandas as pd
 import io
+import os
 
+# 匯入您的自定義模組
 from calculator import get_luck_percentile, get_rank_name
-from database import check_is_up
-from models import SessionLocal, Record, engine, Base
+from database import check_is_up, engine, get_db
+from models import Record, Base
 
-# 初始化資料庫
+# --- 核心：初始化資料庫表格 ---
+# 這行會根據 models.py 在 PostgreSQL 中自動建立 records 表格
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
 
-# 設定 CORS
+# 設定 CORS (允許您的 GitHub Pages 跨網域連線)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 # --- 1. 數據總覽 (評級) ---
 @app.get("/get_summary")
@@ -47,7 +43,7 @@ def get_summary(user_id: str, db: Session = Depends(get_db)):
         }
     return res
 
-# --- 2. 進階分析數據 (抽卡詳情分析面板) ---
+# --- 2. 進階分析數據 ---
 @app.get("/get_advanced_stats")
 def get_advanced_stats(user_id: str, db: Session = Depends(get_db)):
     all_recs = db.query(Record).filter(Record.user_id == user_id).all()
@@ -80,7 +76,7 @@ def get_advanced_stats(user_id: str, db: Session = Depends(get_db)):
         "avg_weapon_stone": f"{round(avg_weapon_stone):,}"
     }
 
-# --- 3. 歷史紀錄與管理 ---
+# --- 3. 歷史紀錄管理 ---
 @app.get("/get_history")
 def get_history(user_id: str, db: Session = Depends(get_db)):
     return db.query(Record).filter(Record.user_id == user_id).order_by(Record.id.desc()).all()
@@ -90,7 +86,7 @@ def delete_pull(record_id: int, db: Session = Depends(get_db)):
     record = db.query(Record).filter(Record.id == record_id).first()
     if record:
         db.delete(record)
-        db.commit()
+        db.commit() # 確保從 PostgreSQL 永久刪除
         return {"status": "success"}
     raise HTTPException(status_code=404, detail="找不到紀錄")
 
@@ -98,7 +94,7 @@ def delete_pull(record_id: int, db: Session = Depends(get_db)):
 def add_pull(user_id: str, name: str, pulls: int, pool: str, db: Session = Depends(get_db)):
     is_up = check_is_up(name, pool) == 1
     db.add(Record(user_id=user_id, name=name, pulls=pulls, pool=pool, is_up=is_up))
-    db.commit()
+    db.commit() # 確保寫入 PostgreSQL 永久空間
     return {"status": "success"}
 
 @app.post("/import_excel")
@@ -114,7 +110,11 @@ async def import_excel(user_id: str, file: UploadFile = File(...), db: Session =
 @app.get("/export_excel")
 def export_excel(user_id: str, db: Session = Depends(get_db)):
     recs = db.query(Record).filter(Record.user_id == user_id).all()
+    if not recs:
+        raise HTTPException(status_code=400, detail="沒有數據可導出")
     df = pd.DataFrame([{"池子": r.pool, "名稱": r.name, "抽數": r.pulls, "中UP": r.is_up} for r in recs])
-    path = f"{user_id}_data.xlsx"
+    
+    # 存入 Render 臨時空間並提供下載
+    path = f"/tmp/{user_id}_data.xlsx"
     df.to_excel(path, index=False)
-    return FileResponse(path, filename=path)
+    return FileResponse(path, filename=f"GenshinLuck_{user_id}.xlsx")
