@@ -9,15 +9,15 @@ import os
 # 匯入您的自定義模組
 from calculator import get_luck_percentile, get_rank_name
 from database import check_is_up, engine, get_db
-from models import Record, Base
+import models  # 確保導入您的 models 模組
 
-# --- 核心：初始化資料庫表格 ---
-# 這行會根據 models.py 在 PostgreSQL 中自動建立 records 表格
-Base.metadata.create_all(bind=engine)
+# --- 核心：建立表格 (原本在 models.py 的 init_db 功能) ---
+# 這行非常關鍵，它會在伺服器啟動時自動檢查並在 PostgreSQL 建立紀錄表
+models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
 
-# 設定 CORS (允許您的 GitHub Pages 跨網域連線)
+# 設定 CORS (讓您的 GitHub Pages 網頁能順利抓取資料)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -25,12 +25,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- 1. 數據總覽 (評級) ---
+@app.get("/")
+def read_root():
+    return {"status": "Genshin Luck API is running on Render with PostgreSQL"}
+
+# --- 1. 數據總覽 (評級與不歪率) ---
 @app.get("/get_summary")
 def get_summary(user_id: str, db: Session = Depends(get_db)):
     res = {}
     for p in ["weapon", "character"]:
-        recs = db.query(Record).filter(Record.user_id == user_id, Record.pool == p).all()
+        # 從 PostgreSQL 資料庫讀取紀錄
+        recs = db.query(models.Record).filter(models.Record.user_id == user_id, models.Record.pool == p).all()
         if not recs:
             res[p] = {"avg": 0, "win_rate": "0%", "rank": "尚無數據"}
             continue
@@ -43,10 +48,10 @@ def get_summary(user_id: str, db: Session = Depends(get_db)):
         }
     return res
 
-# --- 2. 進階分析數據 ---
+# --- 2. 進階分析數據 (抽卡詳情面板) ---
 @app.get("/get_advanced_stats")
 def get_advanced_stats(user_id: str, db: Session = Depends(get_db)):
-    all_recs = db.query(Record).filter(Record.user_id == user_id).all()
+    all_recs = db.query(models.Record).filter(models.Record.user_id == user_id).all()
     if not all_recs:
         return {
             "win_rate": "0%", "total_pulls": 0, "total_stones": 0,
@@ -79,42 +84,43 @@ def get_advanced_stats(user_id: str, db: Session = Depends(get_db)):
 # --- 3. 歷史紀錄管理 ---
 @app.get("/get_history")
 def get_history(user_id: str, db: Session = Depends(get_db)):
-    return db.query(Record).filter(Record.user_id == user_id).order_by(Record.id.desc()).all()
+    return db.query(models.Record).filter(models.Record.user_id == user_id).order_by(models.Record.id.desc()).all()
 
 @app.delete("/delete_pull/{record_id}")
 def delete_pull(record_id: int, db: Session = Depends(get_db)):
-    record = db.query(Record).filter(Record.id == record_id).first()
+    record = db.query(models.Record).filter(models.Record.id == record_id).first()
     if record:
         db.delete(record)
-        db.commit() # 確保從 PostgreSQL 永久刪除
+        db.commit() # 永久從雲端資料庫刪除
         return {"status": "success"}
     raise HTTPException(status_code=404, detail="找不到紀錄")
 
 @app.post("/add_pull")
 def add_pull(user_id: str, name: str, pulls: int, pool: str, db: Session = Depends(get_db)):
     is_up = check_is_up(name, pool) == 1
-    db.add(Record(user_id=user_id, name=name, pulls=pulls, pool=pool, is_up=is_up))
-    db.commit() # 確保寫入 PostgreSQL 永久空間
+    db.add(models.Record(user_id=user_id, name=name, pulls=pulls, pool=pool, is_up=is_up))
+    db.commit() # 永久寫入雲端資料庫
     return {"status": "success"}
 
+# --- 4. Excel 匯入與導出功能 ---
 @app.post("/import_excel")
 async def import_excel(user_id: str, file: UploadFile = File(...), db: Session = Depends(get_db)):
     contents = await file.read()
     df = pd.read_excel(io.BytesIO(contents))
     for _, row in df.iterrows():
         is_up = check_is_up(str(row['名稱']), str(row['池子'])) == 1
-        db.add(Record(user_id=user_id, pool=str(row['池子']), name=str(row['名稱']), pulls=int(row['抽數']), is_up=is_up))
+        db.add(models.Record(user_id=user_id, pool=str(row['池子']), name=str(row['名稱']), pulls=int(row['抽數']), is_up=is_up))
     db.commit()
     return {"status": "success"}
 
 @app.get("/export_excel")
 def export_excel(user_id: str, db: Session = Depends(get_db)):
-    recs = db.query(Record).filter(Record.user_id == user_id).all()
+    recs = db.query(models.Record).filter(models.Record.user_id == user_id).all()
     if not recs:
         raise HTTPException(status_code=400, detail="沒有數據可導出")
     df = pd.DataFrame([{"池子": r.pool, "名稱": r.name, "抽數": r.pulls, "中UP": r.is_up} for r in recs])
     
-    # 存入 Render 臨時空間並提供下載
+    # 存入臨時空間供下載
     path = f"/tmp/{user_id}_data.xlsx"
     df.to_excel(path, index=False)
     return FileResponse(path, filename=f"GenshinLuck_{user_id}.xlsx")
