@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>Genshin Luck Analyzer - Professional</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background: #0b111a; color: #e2e8f0; font-family: 'Segoe UI', sans-serif; background-image: radial-gradient(circle at 20% 30%, #1a2332 0%, #0b111a 100%); }
+        .glass-card { background: rgba(26, 35, 50, 0.85); border-radius: 1.5rem; border: 1px solid rgba(255, 255, 255, 0.05); backdrop-filter: blur(12px); box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5); }
+        .nav-active { background: #3b82f6; color: white; box-shadow: 0 0 15px rgba(59, 130, 246, 0.4); }
+        .pull-bar-container { height: 1.25rem; background: #0f172a; border-radius: 999px; overflow: hidden; position: relative; }
+        .pull-bar-fill { height: 100%; transition: width 0.8s ease-out; }
+        /* 彩色變色邏輯 */
+        .bar-green { background: linear-gradient(90deg, #10b981, #059669); }
+        .bar-yellow { background: linear-gradient(90deg, #f59e0b, #d97706); }
+        .bar-red { background: linear-gradient(90deg, #ef4444, #dc2626); }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+    </style>
+</head>
+<body class="p-6 md:p-12 min-h-screen">
+    <div class="max-w-7xl mx-auto space-y-8">
+        <header class="flex flex-col md:flex-row justify-between items-center gap-6">
+            <h1 class="text-4xl font-black tracking-tighter text-white italic">GENSHIN <span class="text-blue-500">LUCK</span></h1>
+            <div class="flex items-center space-x-2 bg-gray-800/50 p-1 rounded-2xl border border-gray-700">
+                <button onclick="switchTab('dashboard')" id="btn-dashboard" class="px-8 py-2.5 rounded-xl text-sm font-bold transition-all nav-active">數據分析</button>
+                <button onclick="switchTab('input')" id="btn-input" class="px-8 py-2.5 rounded-xl text-sm font-bold transition-all text-gray-400">數據錄入</button>
+                <div class="h-6 w-px bg-gray-700 mx-2"></div>
+                <input type="text" id="userId" value="1800761135" onchange="refreshAll()" class="bg-transparent border-none text-center font-mono text-blue-400 w-36 outline-none">
+            </div>
+        </header>
+
+        <main id="tab-dashboard" class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            <section class="lg:col-span-4 space-y-6">
+                <div class="glass-card p-10 text-center relative overflow-hidden">
+                    <div class="absolute top-0 left-0 w-full h-1.5 bg-blue-500"></div>
+                    <p class="text-gray-400 text-[10px] uppercase tracking-[0.3em] mb-4">抽卡歐皇度鑑定</p>
+                    <h2 id="overallRank" class="text-4xl font-black bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-transparent italic">讀取中...</h2>
+                </div>
+
+                <div class="glass-card p-8 space-y-5">
+                    <h3 class="text-xs font-bold text-blue-400 border-l-4 border-blue-500 pl-3 uppercase tracking-widest">抽卡詳情分析</h3>
+                    <div class="space-y-4">
+                        <div class="flex justify-between items-center">
+                            <span class="text-xs text-gray-500">小保底不歪率</span>
+                            <span id="adv-win-rate" class="text-sm font-black text-yellow-500">--%</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-xs text-gray-500">總計抽數 / 消耗</span>
+                            <div class="text-right">
+                                <p id="adv-total-pulls" class="text-sm font-black text-white">-- 抽</p>
+                                <p id="adv-total-stones" class="text-[10px] text-gray-500 italic">-- 原石</p>
+                            </div>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-xs text-gray-500">最幸運卡池</span>
+                            <span id="adv-lucky-pool" class="text-sm font-bold text-green-400">--</span>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 gap-3 pt-4 border-t border-gray-800">
+                        <div class="bg-gray-900/40 p-4 rounded-xl border border-gray-800/50">
+                            <p class="text-[9px] text-gray-500 uppercase mb-1">平均每個 UP 角色花費</p>
+                            <p id="adv-char-stone" class="text-xl font-black text-white">-- <span class="text-xs text-gray-400 font-normal">原石</span></p>
+                        </div>
+                        <div class="bg-gray-900/40 p-4 rounded-xl border border-gray-800/50">
+                            <p class="text-[9px] text-gray-500 uppercase mb-1">平均每把限定武器花費</p>
+                            <p id="adv-weapon-stone" class="text-xl font-black text-white">-- <span class="text-xs text-gray-400 font-normal">原石</span></p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="lg:col-span-8 glass-card p-8 min-h-[500px] flex flex-col">
+                <div class="flex justify-between items-center mb-8">
+                    <h3 class="text-lg font-bold flex items-center"><span class="w-1.5 h-6 bg-blue-500 rounded-full mr-3"></span>出金歷史</h3>
+                    <div class="flex bg-gray-900/60 rounded-xl p-1">
+                        <button onclick="togglePool('character')" id="pool-char" class="px-6 py-1.5 text-xs font-bold rounded-lg bg-gray-700 text-white transition-all">角色池</button>
+                        <button onclick="togglePool('weapon')" id="pool-weapon" class="px-6 py-1.5 text-xs font-bold rounded-lg text-gray-500 ml-1 transition-all">武器池</button>
+                    </div>
+                </div>
+                <div id="historyContainer" class="space-y-6 overflow-y-auto pr-4 no-scrollbar flex-grow"></div>
+            </section>
+        </main>
+
+        <main id="tab-input" class="hidden grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div class="glass-card p-10 space-y-8">
+                <h3 class="text-xl font-bold border-l-4 border-blue-500 pl-4 uppercase">手動新增</h3>
+                <div class="space-y-4">
+                    <select id="inputPool" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-4 text-sm outline-none">
+                        <option value="character">限定角色池</option><option value="weapon">武器祈願池</option>
+                    </select>
+                    <input type="text" id="inputName" placeholder="五星名稱" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-4 text-sm outline-none">
+                    <input type="number" id="inputPulls" placeholder="消耗抽數" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-4 text-sm outline-none">
+                    <button onclick="submitManual()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-4 rounded-xl shadow-lg transition active:scale-95">提交紀錄</button>
+                </div>
+            </div>
+
+            <div class="glass-card p-8 space-y-6">
+                <h3 class="text-xl font-bold border-l-4 border-green-500 pl-4 uppercase">Excel 批量管理</h3>
+                <div class="bg-gray-900/80 rounded-xl p-5 border border-gray-700/50">
+                    <div class="flex justify-between items-center mb-3">
+                        <p class="text-xs text-green-400 font-bold uppercase tracking-widest">Excel 格式範例</p>
+                        <button onclick="copyExample()" class="text-[10px] bg-gray-700 px-2 py-1 rounded hover:bg-gray-600">複製欄位</button>
+                    </div>
+                    <table class="w-full text-[11px] text-gray-400 text-left">
+                        <thead class="text-white border-b border-gray-700"><tr class="h-8"><th>池子</th><th>名稱</th><th>抽數</th></tr></thead>
+                        <tbody><tr class="h-8"><td>character</td><td>芙寧娜</td><td>76</td></tr><tr class="h-8"><td>weapon</td><td>靜水湧流之輝</td><td>65</td></tr></tbody>
+                    </table>
+                </div>
+                <div class="flex gap-4">
+                    <button onclick="document.getElementById('fileInput').click()" class="flex-1 bg-gray-800 py-4 rounded-xl font-bold hover:bg-gray-700 transition">匯入 Excel</button>
+                    <button onclick="exportData()" class="flex-1 bg-gray-800 py-4 rounded-xl font-bold hover:bg-gray-700 transition">導出備份</button>
+                </div>
+                <input type="file" id="fileInput" class="hidden" onchange="importExcel(this)">
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const API = "http://127.0.0.1:8000";
+        let currentPool = 'character';
+
+        window.onload = refreshAll;
+
+        function switchTab(tab) {
+            document.getElementById('tab-dashboard').classList.toggle('hidden', tab !== 'dashboard');
+            document.getElementById('tab-input').classList.toggle('hidden', tab !== 'input');
+            document.getElementById('btn-dashboard').className = tab === 'dashboard' ? 'px-8 py-2.5 rounded-xl text-sm font-bold transition-all nav-active' : 'px-8 py-2.5 rounded-xl text-sm font-bold transition-all text-gray-400 hover:text-white';
+            document.getElementById('btn-input').className = tab === 'input' ? 'px-8 py-2.5 rounded-xl text-sm font-bold transition-all nav-active' : 'px-8 py-2.5 rounded-xl text-sm font-bold transition-all text-gray-400 hover:text-white';
+        }
+
+        function togglePool(pool) {
+            currentPool = pool;
+            document.getElementById('pool-char').className = pool === 'character' ? 'px-6 py-1.5 text-xs font-bold rounded-lg bg-gray-700 text-white' : 'px-6 py-1.5 text-xs font-bold rounded-lg text-gray-500';
+            document.getElementById('pool-weapon').className = pool === 'weapon' ? 'px-6 py-1.5 text-xs font-bold rounded-lg bg-gray-700 text-white' : 'px-6 py-1.5 text-xs font-bold rounded-lg text-gray-500';
+            loadHistoryList();
+        }
+
+        async function refreshAll() {
+            const userId = document.getElementById('userId').value;
+            try {
+                // 1. 評級
+                const resSum = await fetch(`${API}/get_summary?user_id=${userId}`);
+                const dataSum = await resSum.json();
+                document.getElementById('overallRank').innerText = dataSum.character.rank;
+
+                // 2. 進階總結面板
+                const resAdv = await fetch(`${API}/get_advanced_stats?user_id=${userId}`);
+                const dataAdv = await resAdv.json();
+                document.getElementById('adv-win-rate').innerText = dataAdv.win_rate;
+                document.getElementById('adv-total-pulls').innerText = `${dataAdv.total_pulls} 抽`;
+                document.getElementById('adv-total-stones').innerText = `${dataAdv.total_stones} 原石`;
+                document.getElementById('adv-lucky-pool').innerText = dataAdv.lucky_pool;
+                document.getElementById('adv-char-stone').innerText = dataAdv.avg_char_stone;
+                document.getElementById('adv-weapon-stone').innerText = dataAdv.avg_weapon_stone;
+
+                loadHistoryList();
+            } catch (e) { console.error("API 連線失敗"); }
+        }
+
+        async function loadHistoryList() {
+            const userId = document.getElementById('userId').value;
+            const res = await fetch(`${API}/get_history?user_id=${userId}`);
+            const records = await res.json();
+            const container = document.getElementById('historyContainer');
+            container.innerHTML = '';
+            
+            records.filter(r => r.pool === currentPool).forEach(r => {
+                const colorClass = r.pulls <= 30 ? 'bar-green' : (r.pulls <= 60 ? 'bar-yellow' : 'bar-red');
+                const width = Math.min((r.pulls / 90) * 100, 100);
+                const item = document.createElement('div');
+                item.className = "group relative animate-fade-in";
+                item.innerHTML = `
+                    <div class="flex justify-between items-end mb-2 px-1">
+                        <div class="flex items-center">
+                            <span class="text-sm font-bold text-white mr-3">${r.name}</span>
+                            <button onclick="deleteRecord(${r.id})" class="opacity-0 group-hover:opacity-100 text-red-500 text-xs transition-opacity duration-200">🗑️ 刪除</button>
+                        </div>
+                        <span class="text-lg font-black italic ${r.pulls <= 30 ? 'text-green-400' : 'text-gray-400'}">${r.pulls} 抽</span>
+                    </div>
+                    <div class="pull-bar-container"><div class="pull-bar-fill ${colorClass}" style="width: ${width}%"></div></div>
+                `;
+                container.appendChild(item);
+            });
+        }
+
+        async function deleteRecord(id) {
+            if(!confirm("確定要刪除嗎？")) return;
+            await fetch(`${API}/delete_pull/${id}`, { method: 'DELETE' });
+            refreshAll();
+        }
+
+        async function submitManual() {
+            const userId = document.getElementById('userId').value;
+            const name = document.getElementById('inputName').value;
+            const pulls = document.getElementById('inputPulls').value;
+            const pool = document.getElementById('inputPool').value;
+            if(!name || !pulls) return;
+            await fetch(`${API}/add_pull?user_id=${userId}&name=${name}&pulls=${pulls}&pool=${pool}`, { method: 'POST' });
+            refreshAll(); switchTab('dashboard');
+        }
+
+        async function importExcel(input) {
+            const userId = document.getElementById('userId').value;
+            const formData = new FormData();
+            formData.append('file', input.files[0]);
+            const res = await fetch(`${API}/import_excel?user_id=${userId}`, { method: 'POST', body: formData });
+            if(res.ok) { alert("數據匯入完成"); refreshAll(); switchTab('dashboard'); }
+        }
+
+        function exportData() {
+            const userId = document.getElementById('userId').value;
+            window.location.href = `${API}/export_excel?user_id=${userId}`;
+        }
+
+        function copyExample() {
+            navigator.clipboard.writeText("池子\t名稱\t抽數");
+            alert("已複製欄位標題：池子、名稱、抽數");
+        }
+    </script>
+</body>
+</html>
