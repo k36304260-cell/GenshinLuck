@@ -70,11 +70,11 @@
                     <div class="grid grid-cols-1 gap-3 pt-4 border-t border-gray-800">
                         <div class="bg-gray-900/40 p-4 rounded-xl border border-gray-800/50">
                             <p class="text-[9px] text-gray-500 uppercase mb-1">平均每個 UP 角色花費</p>
-                            <p id="adv-char-stone" class="text-xl font-black text-white">-- <span class="font-black">原石</span></p>
+                            <p id="adv-char-stone" class="text-xl font-black text-white">-- <span class="font-black text-white">原石</span></p>
                         </div>
                         <div class="bg-gray-900/40 p-4 rounded-xl border border-gray-800/50">
                             <p class="text-[9px] text-gray-500 uppercase mb-1">平均每把限定武器花費</p>
-                            <p id="adv-weapon-stone" class="text-xl font-black text-white">-- <span class="font-black">原石</span></p>
+                            <p id="adv-weapon-stone" class="text-xl font-black text-white">-- <span class="font-black text-white">原石</span></p>
                         </div>
                     </div>
                 </div>
@@ -99,7 +99,7 @@
                     <select id="inputPool" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-4 text-sm outline-none">
                         <option value="character">限定角色池</option><option value="weapon">武器祈願池</option>
                     </select>
-                    <input type="text" id="inputName" autocomplete="off" onkeyup="showSuggestions(this.value)" placeholder="五星名稱 (如：迪希雅、魈)" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-4 text-sm outline-none">
+                    <input type="text" id="inputName" autocomplete="off" onkeyup="showSuggestions(this.value, event)" placeholder="按空白鍵彈出常駐名單" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-4 text-sm outline-none">
                     <div id="suggestions" class="absolute z-50 w-full bg-gray-800 rounded-xl mt-[-10px] hidden border border-gray-700 shadow-2xl overflow-hidden text-xs"></div>
                     
                     <input type="number" id="inputPulls" placeholder="消耗抽數" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-4 text-sm outline-none">
@@ -107,7 +107,7 @@
                 </div>
             </div>
 
-            <div class="glass-card p-8 space-y-6">
+            <div class="glass-card p-8 space-y-6 text-center">
                 <h3 class="text-xl font-bold border-l-4 border-green-500 pl-4 uppercase">Excel 批量管理</h3>
                 <div class="flex gap-4">
                     <button onclick="document.getElementById('fileInput').click()" class="flex-1 bg-gray-800 py-4 rounded-xl font-bold hover:bg-gray-700 transition">匯入 Excel</button>
@@ -144,18 +144,42 @@
             loadHistoryList();
         }
 
-        // 模糊建議邏輯
-        function showSuggestions(val) {
+        // 修改後的建議邏輯
+        function showSuggestions(val, event) {
             const container = document.getElementById('suggestions');
-            if (!val) { container.classList.add('hidden'); return; }
-            const matches = standardList.filter(s => s.includes(val));
-            if (matches.length > 0) {
-                container.innerHTML = matches.map(m => `<div class="suggestion-item" onclick="selectName('${m}')">${m} <span class="text-gray-500">(常駐提示)</span></div>`).join('');
-                container.classList.remove('hidden');
-            } else { container.classList.add('hidden'); }
+            const inputField = document.getElementById('inputName');
+            
+            // 偵測空白鍵 (Space)：當輸入框為空且按下空白鍵時顯示完整名單
+            if (event && (event.key === " " || event.code === "Space")) {
+                if (!val.trim()) {
+                    renderSuggestions(standardList);
+                    return;
+                }
+            }
+
+            if (!val.trim()) {
+                container.classList.add('hidden');
+                return;
+            }
+            
+            const matches = standardList.filter(s => s.includes(val.trim()));
+            renderSuggestions(matches);
         }
 
-        function selectName(n) { document.getElementById('inputName').value = n; document.getElementById('suggestions').classList.add('hidden'); }
+        function renderSuggestions(list) {
+            const container = document.getElementById('suggestions');
+            if (list.length > 0) {
+                container.innerHTML = list.map(m => `<div class="suggestion-item" onclick="selectName('${m}')">${m} <span class="text-gray-500">(常駐提示)</span></div>`).join('');
+                container.classList.remove('hidden');
+            } else {
+                container.classList.add('hidden');
+            }
+        }
+
+        function selectName(n) {
+            document.getElementById('inputName').value = n;
+            document.getElementById('suggestions').classList.add('hidden');
+        }
 
         async function refreshAll() {
             const userId = document.getElementById('userId').value;
@@ -171,7 +195,6 @@
                 document.getElementById('adv-total-stones').innerText = `${dataAdv.total_stones} 原石`;
                 document.getElementById('adv-lucky-pool').innerText = dataAdv.lucky_pool;
                 
-                // 原石文字對齊優化
                 document.getElementById('adv-char-stone').innerHTML = `${dataAdv.avg_char_stone.toLocaleString()} <span class="font-black text-white">原石</span>`;
                 document.getElementById('adv-weapon-stone').innerHTML = `${dataAdv.avg_weapon_stone.toLocaleString()} <span class="font-black text-white">原石</span>`;
 
@@ -192,7 +215,6 @@
                 const item = document.createElement('div');
                 item.className = "group relative animate-fade-in";
                 
-                // 「歪」標籤判定
                 const offBannerHtml = r.is_up ? '' : '<span class="off-banner-tag">歪</span>';
 
                 item.innerHTML = `
