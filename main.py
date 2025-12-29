@@ -34,7 +34,6 @@ def read_root():
 def get_summary(user_id: str, db: Session = Depends(get_db)):
     res = {}
     for p in ["weapon", "character"]:
-        # 從 PostgreSQL 資料庫讀取紀錄
         recs = db.query(models.Record).filter(models.Record.user_id == user_id, models.Record.pool == p).all()
         if not recs:
             res[p] = {"avg": 0, "win_rate": "0%", "rank": "尚無數據"}
@@ -48,13 +47,13 @@ def get_summary(user_id: str, db: Session = Depends(get_db)):
         }
     return res
 
-# --- 2. 進階分析數據 (抽卡詳情面板) ---
+# --- 2. 進階分析數據 (配合前端顯示原石單位) ---
 @app.get("/get_advanced_stats")
 def get_advanced_stats(user_id: str, db: Session = Depends(get_db)):
     all_recs = db.query(models.Record).filter(models.Record.user_id == user_id).all()
     if not all_recs:
         return {
-            "win_rate": "0%", "total_pulls": 0, "total_stones": 0,
+            "win_rate": "0%", "total_pulls": 0, "total_stones": "0",
             "lucky_pool": "尚無數據", "avg_char_stone": 0, "avg_weapon_stone": 0
         }
 
@@ -77,7 +76,7 @@ def get_advanced_stats(user_id: str, db: Session = Depends(get_db)):
         "total_pulls": total_pulls,
         "total_stones": f"{total_stones:,}",
         "lucky_pool": f"{lucky_item.name} ({lucky_item.pulls}抽)",
-        # 回傳純數字，以便前端加上樣式一致的「原石」標籤
+        # 重要：回傳純數字，配合 index.html 的 .toLocaleString()
         "avg_char_stone": round(avg_char_stone),
         "avg_weapon_stone": round(avg_weapon_stone)
     }
@@ -85,7 +84,7 @@ def get_advanced_stats(user_id: str, db: Session = Depends(get_db)):
 # --- 3. 歷史紀錄管理 ---
 @app.get("/get_history")
 def get_history(user_id: str, db: Session = Depends(get_db)):
-    # 這裡會回傳包含 is_up 的完整物件，前端將以此顯示「歪」字紅圈
+    # 確保回傳完整的 Record 物件 (包含 id, name, pulls, is_up)
     return db.query(models.Record).filter(models.Record.user_id == user_id).order_by(models.Record.id.desc()).all()
 
 @app.delete("/delete_pull/{record_id}")
@@ -93,16 +92,16 @@ def delete_pull(record_id: int, db: Session = Depends(get_db)):
     record = db.query(models.Record).filter(models.Record.id == record_id).first()
     if record:
         db.delete(record)
-        db.commit() # 永久從雲端資料庫刪除
+        db.commit() 
         return {"status": "success"}
     raise HTTPException(status_code=404, detail="找不到紀錄")
 
 @app.post("/add_pull")
 def add_pull(user_id: str, name: str, pulls: int, pool: str, db: Session = Depends(get_db)):
-    # check_is_up 會根據名稱自動判定是否為常駐
+    # 調用 database.py 的模糊比對判定
     is_up = check_is_up(name, pool) == 1
     db.add(models.Record(user_id=user_id, name=name, pulls=pulls, pool=pool, is_up=is_up))
-    db.commit() # 永久寫入雲端資料庫
+    db.commit() 
     return {"status": "success"}
 
 # --- 4. Excel 匯入與導出功能 ---
@@ -122,8 +121,6 @@ def export_excel(user_id: str, db: Session = Depends(get_db)):
     if not recs:
         raise HTTPException(status_code=400, detail="沒有數據可導出")
     df = pd.DataFrame([{"池子": r.pool, "名稱": r.name, "抽數": r.pulls, "中UP": r.is_up} for r in recs])
-    
-    # 存入臨時空間供下載
     path = f"/tmp/{user_id}_data.xlsx"
     df.to_excel(path, index=False)
     return FileResponse(path, filename=f"GenshinLuck_{user_id}.xlsx")
