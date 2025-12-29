@@ -107,8 +107,25 @@
                 </div>
             </div>
 
-            <div class="glass-card p-8 space-y-6 text-center">
+            <div class="glass-card p-8 space-y-6">
                 <h3 class="text-xl font-bold border-l-4 border-green-500 pl-4 uppercase">Excel 批量管理</h3>
+                
+                <div class="bg-gray-900/80 rounded-xl p-5 border border-gray-700/50">
+                    <div class="flex justify-between items-center mb-3">
+                        <p class="text-xs text-green-400 font-bold uppercase tracking-widest">Excel 格式範例</p>
+                        <button onclick="copyExample()" class="text-[10px] bg-gray-700 px-2 py-1 rounded hover:bg-gray-600">複製欄位</button>
+                    </div>
+                    <table class="w-full text-[11px] text-gray-400 text-left">
+                        <thead class="text-white border-b border-gray-700">
+                            <tr class="h-8"><th>池子</th><th>名稱</th><th>抽數</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr class="h-8"><td>character</td><td>芙寧娜</td><td>76</td></tr>
+                            <tr class="h-8"><td>weapon</td><td>靜水湧流之輝</td><td>65</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
                 <div class="flex gap-4">
                     <button onclick="document.getElementById('fileInput').click()" class="flex-1 bg-gray-800 py-4 rounded-xl font-bold hover:bg-gray-700 transition">匯入 Excel</button>
                     <button onclick="exportData()" class="flex-1 bg-gray-800 py-4 rounded-xl font-bold hover:bg-gray-700 transition">導出備份</button>
@@ -144,10 +161,8 @@
             loadHistoryList();
         }
 
-        // 修改後的建議邏輯
         function showSuggestions(val, event) {
             const container = document.getElementById('suggestions');
-            const inputField = document.getElementById('inputName');
             
             // 偵測空白鍵 (Space)：當輸入框為空且按下空白鍵時顯示完整名單
             if (event && (event.key === " " || event.code === "Space")) {
@@ -262,6 +277,11 @@
         function exportData() {
             const userId = document.getElementById('userId').value;
             window.location.href = `${API}/export_excel?user_id=${userId}`;
+        }
+
+        function copyExample() {
+            navigator.clipboard.writeText("池子\t名稱\t抽數");
+            alert("已複製欄位標題：池子、名稱、抽數");
         }
     </script>
 </body>
