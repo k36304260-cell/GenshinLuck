@@ -10,6 +10,7 @@
         .nav-active { background: #3b82f6; color: white; box-shadow: 0 0 15px rgba(59, 130, 246, 0.4); }
         .pull-bar-container { height: 1.25rem; background: #0f172a; border-radius: 999px; overflow: hidden; position: relative; }
         .pull-bar-fill { height: 100%; transition: width 0.8s ease-out; }
+        /* 彩色變色邏輯 */
         .bar-green { background: linear-gradient(90deg, #10b981, #059669); }
         .bar-yellow { background: linear-gradient(90deg, #f59e0b, #d97706); }
         .bar-red { background: linear-gradient(90deg, #ef4444, #dc2626); }
@@ -66,11 +67,11 @@
                     <div class="grid grid-cols-1 gap-3 pt-4 border-t border-gray-800">
                         <div class="bg-gray-900/40 p-4 rounded-xl border border-gray-800/50">
                             <p class="text-[9px] text-gray-500 uppercase mb-1">平均每個 UP 角色花費</p>
-                            <p id="adv-char-stone" class="text-xl font-black text-white">--</p>
+                            <p id="adv-char-stone" class="text-xl font-black text-white">-- <span class="font-black">原石</span></p>
                         </div>
                         <div class="bg-gray-900/40 p-4 rounded-xl border border-gray-800/50">
                             <p class="text-[9px] text-gray-500 uppercase mb-1">平均每把限定武器花費</p>
-                            <p id="adv-weapon-stone" class="text-xl font-black text-white">--</p>
+                            <p id="adv-weapon-stone" class="text-xl font-black text-white">-- <span class="font-black">原石</span></p>
                         </div>
                     </div>
                 </div>
@@ -145,10 +146,12 @@
         async function refreshAll() {
             const userId = document.getElementById('userId').value;
             try {
+                // 1. 評級
                 const resSum = await fetch(`${API}/get_summary?user_id=${userId}`);
                 const dataSum = await resSum.json();
                 document.getElementById('overallRank').innerText = dataSum.character.rank;
 
+                // 2. 進階總結面板
                 const resAdv = await fetch(`${API}/get_advanced_stats?user_id=${userId}`);
                 const dataAdv = await resAdv.json();
                 document.getElementById('adv-win-rate').innerText = dataAdv.win_rate;
@@ -157,8 +160,8 @@
                 document.getElementById('adv-lucky-pool').innerText = dataAdv.lucky_pool;
                 
                 // 修改：原石字體大小與數字相同
-                document.getElementById('adv-char-stone').innerHTML = `${dataAdv.avg_char_stone} <span class="font-black">原石</span>`;
-                document.getElementById('adv-weapon-stone').innerHTML = `${dataAdv.avg_weapon_stone} <span class="font-black">原石</span>`;
+                document.getElementById('adv-char-stone').innerHTML = `${dataAdv.avg_char_stone.toLocaleString()} <span class="font-black">原石</span>`;
+                document.getElementById('adv-weapon-stone').innerHTML = `${dataAdv.avg_weapon_stone.toLocaleString()} <span class="font-black">原石</span>`;
 
                 loadHistoryList();
             } catch (e) { console.error("API 連線失敗"); }
@@ -177,7 +180,7 @@
                 const item = document.createElement('div');
                 item.className = "group relative animate-fade-in";
                 
-                // 修改：判定是否歪了
+                // 修改：判定是否歪了，顯示紅圈
                 const offBannerHtml = r.is_up ? '' : '<span class="off-banner-tag">歪</span>';
 
                 item.innerHTML = `
