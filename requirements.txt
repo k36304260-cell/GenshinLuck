@@ -6,3 +6,5 @@ openpyxl
 python-multipart
 scipy
 psycopg2-binary
+thefuzz
+python-Levenshtein
