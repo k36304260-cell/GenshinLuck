@@ -77,7 +77,7 @@ def get_advanced_stats(user_id: str, db: Session = Depends(get_db)):
         "total_pulls": total_pulls,
         "total_stones": f"{total_stones:,}",
         "lucky_pool": f"{lucky_item.name} ({lucky_item.pulls}抽)",
-        # 改動：回傳純數字，以便前端加上樣式一致的「原石」標籤
+        # 回傳純數字，以便前端加上樣式一致的「原石」標籤
         "avg_char_stone": round(avg_char_stone),
         "avg_weapon_stone": round(avg_weapon_stone)
     }
